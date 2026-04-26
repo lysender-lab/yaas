@@ -82,9 +82,17 @@ pub async fn authenticate_token_svc(state: &AppState, token: &str) -> Result<Act
     let actor_payload = verify_auth_token(token, &state.config.jwt_secret)?;
     let user_id = actor_payload.id.clone();
     let org_id = actor_payload.org_id.clone();
+    let scopes_str = actor_payload
+        .scopes
+        .iter()
+        .map(|s| s.to_string())
+        .collect::<Vec<String>>()
+        .join(",");
+
+    let cache_key = format!("{}:{}:{}", user_id, org_id, scopes_str);
 
     // If found in cache, return right away
-    if let Some(cached_actor) = state.auth_cache.get(&user_id) {
+    if let Some(cached_actor) = state.auth_cache.get(&cache_key) {
         return Ok(cached_actor.clone());
     }
 
@@ -98,7 +106,7 @@ pub async fn authenticate_token_svc(state: &AppState, token: &str) -> Result<Act
     let actor = Actor::new(actor_payload, user.clone());
 
     // Store to cache
-    state.auth_cache.insert(user_id, actor.clone());
+    state.auth_cache.insert(cache_key, actor.clone());
 
     Ok(actor)
 }

@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use validator::Validate;
 
-#[derive(Deserialize, Validate)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct LoginFormPayload {
     #[validate(length(min = 4, max = 50))]
     pub username: String,
