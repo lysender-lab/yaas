@@ -16,6 +16,7 @@ use validator::Validate;
 use crate::{
     Error, Result,
     ctx::Ctx,
+    dto::Scope,
     error::{ErrorInfo, JsonRejectionSnafu, ResponseBuilderSnafu, TemplateSnafu},
     models::{CspNonce, Pref, TemplateData},
     run::AppState,
@@ -229,6 +230,11 @@ pub async fn oauth_profile_handler(
     let Some(actor) = authenticate_token_svc(&state, &token).await?.actor else {
         return Err(Error::LoginRequired);
     };
+
+    if !actor.scopes.contains(&Scope::Oauth) {
+        // Ensure actor has the OAuth scope
+        return Err(Error::LoginRequired);
+    }
 
     Ok((StatusCode::OK, Json(actor)))
 }

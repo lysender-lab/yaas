@@ -32,8 +32,8 @@ pub async fn create_authorization_code_svc(
     // Convert it to scope enums
     let scopes = to_scopes(&scope_list)?;
 
-    // Allowed scopes
-    let allowed_scopes = [Scope::Auth, Scope::Oauth];
+    // Only oauth scope is allowed for app clients
+    let allowed_scopes = [Scope::Oauth];
 
     // Ensure all requested scopes are allowed
     let invalid_scopes = scopes
@@ -137,8 +137,8 @@ pub async fn exchange_code_for_access_token_svc(
 
     let scopes = to_scopes(&scope_list)?;
 
-    // Allowed scopes
-    let allowed_scopes = [Scope::Auth, Scope::Oauth];
+    // Only allow oauth scope
+    let allowed_scopes = [Scope::Oauth];
 
     // Ensure all requested scopes are allowed
     let invalid_scopes: Vec<&Scope> = scopes

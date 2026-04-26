@@ -58,6 +58,10 @@ impl Actor {
         self.has_scope(Scope::Auth)
     }
 
+    pub fn has_oauth_scope(&self) -> bool {
+        self.has_scope(Scope::Oauth)
+    }
+
     pub fn has_vault_scope(&self) -> bool {
         self.has_scope(Scope::Vault)
     }
