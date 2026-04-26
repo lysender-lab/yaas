@@ -21,7 +21,7 @@
     <label class="label">Role</label>
     <div class="control">
         <div class="select is-fullwidth">
-            {% call scope::h_select("role", payload.role, "Select a role", "", role_options ) %}
+            {{ scope::h_select("role", payload.role, "Select a role", "", role_options ) }}
         </div>
     </div>
 </div>
