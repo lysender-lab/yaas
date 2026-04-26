@@ -32,8 +32,8 @@ pub async fn create_authorization_code_svc(
     // Convert it to scope enums
     let scopes = to_scopes(&scope_list)?;
 
-    // Allowed scopes
-    let allowed_scopes = [Scope::Auth, Scope::Oauth];
+    // Only oauth scope is allowed for app clients
+    let allowed_scopes = [Scope::Oauth];
 
     // Ensure all requested scopes are allowed
     let invalid_scopes = scopes
@@ -137,8 +137,8 @@ pub async fn exchange_code_for_access_token_svc(
 
     let scopes = to_scopes(&scope_list)?;
 
-    // Allowed scopes
-    let allowed_scopes = [Scope::Auth, Scope::Oauth];
+    // Only allow oauth scope
+    let allowed_scopes = [Scope::Oauth];
 
     // Ensure all requested scopes are allowed
     let invalid_scopes: Vec<&Scope> = scopes
@@ -263,11 +263,11 @@ mod tests {
             .await
             .expect("oauth fixture");
 
-        let actor_ctx = fixture.auth.to_ctx(vec![Scope::Auth]);
+        let actor_ctx = fixture.auth.to_ctx(vec![Scope::Oauth]);
         let query = build_authorize(
             fixture.app.client_id.clone(),
             "https://oauth.example.com/callback",
-            "auth oauth",
+            "oauth",
         );
 
         let code = create_authorization_code_svc(&ctx.state, &actor_ctx, &query)
@@ -359,7 +359,7 @@ mod tests {
         let query = build_authorize(
             fixture.app.client_id.clone(),
             "https://attacker.example.com/callback",
-            "auth",
+            "oauth",
         );
 
         let result = create_authorization_code_svc(&ctx.state, &actor_ctx, &query).await;
@@ -390,7 +390,7 @@ mod tests {
         let query = build_authorize(
             fixture.app.client_id.clone(),
             "https://oauth.example.com/callback",
-            "auth",
+            "oauth",
         );
 
         let result = create_authorization_code_svc(&ctx.state, &actor_ctx, &query).await;
@@ -421,7 +421,7 @@ mod tests {
         let authorize = build_authorize(
             fixture.app.client_id.clone(),
             "https://oauth.example.com/callback",
-            "auth oauth",
+            "oauth",
         );
 
         let code = create_authorization_code_svc(&ctx.state, &actor_ctx, &authorize)
@@ -441,7 +441,7 @@ mod tests {
             .expect("token exchange should succeed");
 
         assert!(!token.access_token.is_empty());
-        assert_eq!(token.scope, "auth oauth");
+        assert_eq!(token.scope, "oauth");
         assert_eq!(token.token_type, "app");
     }
 
@@ -499,7 +499,7 @@ mod tests {
         let authorize = build_authorize(
             fixture.app.client_id.clone(),
             "https://oauth.example.com/callback",
-            "auth",
+            "oauth",
         );
         let code = create_authorization_code_svc(&ctx.state, &actor_ctx, &authorize)
             .await
@@ -541,7 +541,7 @@ mod tests {
         let authorize = build_authorize(
             fixture.app.client_id.clone(),
             "https://oauth.example.com/callback",
-            "auth",
+            "oauth",
         );
         let code = create_authorization_code_svc(&ctx.state, &actor_ctx, &authorize)
             .await
@@ -583,7 +583,7 @@ mod tests {
         let authorize = build_authorize(
             fixture.app.client_id.clone(),
             "https://oauth.example.com/callback",
-            "auth",
+            "oauth",
         );
         let code = create_authorization_code_svc(&ctx.state, &actor_ctx, &authorize)
             .await
@@ -625,7 +625,7 @@ mod tests {
         let authorize = build_authorize(
             fixture.app.client_id.clone(),
             "https://oauth.example.com/callback",
-            "auth",
+            "oauth",
         );
         let code = create_authorization_code_svc(&ctx.state, &actor_ctx, &authorize)
             .await
@@ -715,7 +715,7 @@ mod tests {
         let authorize = build_authorize(
             fixture.app.client_id.clone(),
             "https://oauth.example.com/callback",
-            "auth",
+            "oauth",
         );
         let code = create_authorization_code_svc(&ctx.state, &actor_ctx, &authorize)
             .await

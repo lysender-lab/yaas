@@ -17,8 +17,8 @@ mod security_headers;
 mod setup;
 mod users;
 
-pub const AUTH_TOKEN_COOKIE: &str = "auth_token";
-pub const THEME_COOKIE: &str = "theme";
+pub const AUTH_TOKEN_COOKIE: &str = "yaas_auth";
+pub const THEME_COOKIE: &str = "yaas_theme";
 
 pub use apps::*;
 pub use error::*;
