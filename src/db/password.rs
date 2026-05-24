@@ -1,7 +1,10 @@
+use std::sync::Arc;
+
 use snafu::ResultExt;
-use turso::{Connection, Row};
+use turso::Row;
 
 use crate::Result;
+use crate::db::db_pool::DbPool;
 use crate::db::turso_decode::{FromTursoRow, collect_row, row_integer, row_text};
 use crate::db::turso_params::{integer_param, new_query_params, text_param};
 use crate::dto::{NewPasswordDto, PasswordDto};
@@ -19,11 +22,11 @@ impl FromTursoRow for PasswordDto {
 }
 
 pub struct PasswordRepo {
-    db_pool: Connection,
+    db_pool: Arc<DbPool>,
 }
 
 impl PasswordRepo {
-    pub fn new(db_pool: Connection) -> Self {
+    pub fn new(db_pool: Arc<DbPool>) -> Self {
         Self { db_pool }
     }
 
@@ -52,7 +55,8 @@ impl PasswordRepo {
         q_params.push(integer_param(":created_at", today));
         q_params.push(integer_param(":updated_at", today));
 
-        let mut stmt = self.db_pool.prepare(query).await.context(DbPrepareSnafu)?;
+        let conn = self.db_pool.acquire().await?;
+        let mut stmt = conn.prepare(query).await.context(DbPrepareSnafu)?;
         let affected = stmt.execute(q_params).await.context(DbStatementSnafu)?;
         assert!(affected > 0, "Must insert a new row");
 
@@ -75,7 +79,8 @@ impl PasswordRepo {
         let mut q_params = new_query_params();
         q_params.push(text_param(":id", user_id));
 
-        let mut stmt = self.db_pool.prepare(query).await.context(DbPrepareSnafu)?;
+        let conn = self.db_pool.acquire().await?;
+        let mut stmt = conn.prepare(query).await.context(DbPrepareSnafu)?;
         let row_result = stmt.query_row(q_params).await;
         let dto: Option<PasswordDto> = collect_row(row_result)?;
         Ok(dto)
@@ -98,7 +103,8 @@ impl PasswordRepo {
         q_params.push(integer_param(":updated_at", updated_at));
         q_params.push(text_param(":id", user_id));
 
-        let mut stmt = self.db_pool.prepare(query).await.context(DbPrepareSnafu)?;
+        let conn = self.db_pool.acquire().await?;
+        let mut stmt = conn.prepare(query).await.context(DbPrepareSnafu)?;
         let affected = stmt.execute(q_params).await.context(DbStatementSnafu)?;
 
         Ok(affected > 0)
@@ -114,7 +120,8 @@ impl PasswordRepo {
         let mut q_params = new_query_params();
         q_params.push(text_param(":id", user_id));
 
-        let mut stmt = self.db_pool.prepare(query).await.context(DbPrepareSnafu)?;
+        let conn = self.db_pool.acquire().await?;
+        let mut stmt = conn.prepare(query).await.context(DbPrepareSnafu)?;
         let _ = stmt.execute(q_params).await.context(DbStatementSnafu)?;
 
         Ok(())

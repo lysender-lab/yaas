@@ -29,7 +29,10 @@ pub struct ServerConfig {
 #[derive(Debug, Clone, Deserialize)]
 pub struct DbConfig {
     pub dir: PathBuf,
+    pub pool_size: usize,
 }
+
+const DEFAULT_DB_POOL_SIZE: usize = 4;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct SuperuserConfig {
@@ -88,6 +91,9 @@ impl Config {
         }
 
         let db_dir = PathBuf::from(required_env("DATABASE_DIR")?);
+        let pool_size = optional_env("DATABASE_POOL_SIZE")
+            .and_then(|s| s.parse::<usize>().ok())
+            .unwrap_or(DEFAULT_DB_POOL_SIZE);
 
         let assets = AssetManifest::build(&frontend_dir).expect("Asset manifest should be valid");
 
@@ -96,7 +102,10 @@ impl Config {
                 address: required_env("SERVER_ADDRESS")?,
                 https: required_env("HTTPS")? == "1",
             },
-            db: DbConfig { dir: db_dir },
+            db: DbConfig {
+                dir: db_dir,
+                pool_size,
+            },
             superuser: SuperuserConfig {
                 setup_key: env::var("SUPERUSER_SETUP_KEY").ok(),
             },

@@ -50,6 +50,15 @@ pub enum Error {
     #[snafu(display("{}", source))]
     DbTransaction { source: turso::Error },
 
+    #[snafu(display("Database pool configuration error: {}", msg))]
+    DbPoolConfig { msg: String },
+
+    #[snafu(display("Timed out acquiring database connection from pool"))]
+    DbPoolAcquireTimeout { source: tokio::time::error::Elapsed },
+
+    #[snafu(display("Database pool state error: {}", msg))]
+    DbPoolState { msg: String },
+
     #[snafu(display("Response builder error: {}", source))]
     ResponseBuilder { source: http::Error },
 

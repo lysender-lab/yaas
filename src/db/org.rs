@@ -1,7 +1,10 @@
+use std::sync::Arc;
+
 use snafu::ResultExt;
-use turso::{Connection, Row};
+use turso::Row;
 
 use crate::Result;
+use crate::db::db_pool::DbPool;
 use crate::db::turso_decode::{
     FromTursoRow, collect_count, collect_row, collect_rows, opt_row_text, row_integer, row_text,
 };
@@ -40,11 +43,11 @@ impl FromTursoRow for OrgOwnerSuggestionDto {
 }
 
 pub struct OrgRepo {
-    db_pool: Connection,
+    db_pool: Arc<DbPool>,
 }
 
 impl OrgRepo {
-    pub fn new(db_pool: Connection) -> Self {
+    pub fn new(db_pool: Arc<DbPool>) -> Self {
         Self { db_pool }
     }
 
@@ -68,7 +71,8 @@ impl OrgRepo {
             q_params.push(text_param(":keyword", pattern));
         }
 
-        let mut stmt = self.db_pool.prepare(query).await.context(DbPrepareSnafu)?;
+        let conn = self.db_pool.acquire().await?;
+        let mut stmt = conn.prepare(query).await.context(DbPrepareSnafu)?;
         let row_result = stmt.query_row(q_params).await;
         collect_count(row_result)
     }
@@ -117,7 +121,8 @@ impl OrgRepo {
         q_params.push(integer_param(":limit", pagination.per_page as i64));
         q_params.push(integer_param(":offset", pagination.offset));
 
-        let mut stmt = self.db_pool.prepare(query).await.context(DbPrepareSnafu)?;
+        let conn = self.db_pool.acquire().await?;
+        let mut stmt = conn.prepare(query).await.context(DbPrepareSnafu)?;
         let mut rows = stmt.query(q_params).await.context(DbStatementSnafu)?;
         let items: Vec<OrgDto> = collect_rows(&mut rows).await?;
 
@@ -158,7 +163,8 @@ impl OrgRepo {
             q_params.push(text_param(":exclude_id", exclude_user_id.to_string()));
         }
 
-        let mut stmt = self.db_pool.prepare(query).await.context(DbPrepareSnafu)?;
+        let conn = self.db_pool.acquire().await?;
+        let mut stmt = conn.prepare(query).await.context(DbPrepareSnafu)?;
         let row_result = stmt.query_row(q_params).await;
         collect_count(row_result)
     }
@@ -211,7 +217,8 @@ impl OrgRepo {
         q_params.push(integer_param(":limit", pagination.per_page as i64));
         q_params.push(integer_param(":offset", pagination.offset));
 
-        let mut stmt = self.db_pool.prepare(query).await.context(DbPrepareSnafu)?;
+        let conn = self.db_pool.acquire().await?;
+        let mut stmt = conn.prepare(query).await.context(DbPrepareSnafu)?;
         let mut rows = stmt.query(q_params).await.context(DbStatementSnafu)?;
         let items: Vec<OrgOwnerSuggestionDto> = collect_rows(&mut rows).await?;
 
@@ -291,7 +298,7 @@ impl OrgRepo {
         member_params.push(integer_param(":created_at", today));
         member_params.push(integer_param(":updated_at", today));
 
-        let mut conn = self.db_pool.clone();
+        let mut conn = self.db_pool.acquire().await?;
         let tx = conn.transaction().await.context(DbTransactionSnafu)?;
 
         let mut org_stmt = tx.prepare(org_query).await.context(DbPrepareSnafu)?;
@@ -344,7 +351,8 @@ impl OrgRepo {
         let mut q_params = new_query_params();
         q_params.push(text_param(":id", id));
 
-        let mut stmt = self.db_pool.prepare(query).await.context(DbPrepareSnafu)?;
+        let conn = self.db_pool.acquire().await?;
+        let mut stmt = conn.prepare(query).await.context(DbPrepareSnafu)?;
         let row_result = stmt.query_row(q_params).await;
         let dto: Option<OrgDto> = collect_row(row_result)?;
         Ok(dto)
@@ -382,7 +390,8 @@ impl OrgRepo {
         query.push_str(" WHERE id = :id AND deleted_at IS NULL");
         q_params.push(text_param(":id", id));
 
-        let mut stmt = self.db_pool.prepare(query).await.context(DbPrepareSnafu)?;
+        let conn = self.db_pool.acquire().await?;
+        let mut stmt = conn.prepare(query).await.context(DbPrepareSnafu)?;
         let affected = stmt.execute(q_params).await.context(DbStatementSnafu)?;
 
         Ok(affected > 0)
@@ -404,7 +413,8 @@ impl OrgRepo {
         q_params.push(integer_param(":deleted_at", deleted_at));
         q_params.push(text_param(":id", id));
 
-        let mut stmt = self.db_pool.prepare(query).await.context(DbPrepareSnafu)?;
+        let conn = self.db_pool.acquire().await?;
+        let mut stmt = conn.prepare(query).await.context(DbPrepareSnafu)?;
         let affected = stmt.execute(q_params).await.context(DbStatementSnafu)?;
 
         Ok(affected > 0)
@@ -429,7 +439,8 @@ impl OrgRepo {
         "#;
 
         let q_params = new_query_params();
-        let mut stmt = self.db_pool.prepare(query).await.context(DbPrepareSnafu)?;
+        let conn = self.db_pool.acquire().await?;
+        let mut stmt = conn.prepare(query).await.context(DbPrepareSnafu)?;
         let row_result = stmt.query_row(q_params).await;
         let _dto: Option<OrgDto> = collect_row(row_result)?;
         Ok(())

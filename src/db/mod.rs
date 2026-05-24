@@ -1,5 +1,6 @@
 mod app;
 mod db;
+mod db_pool;
 mod oauth_code;
 mod org;
 mod org_app;

@@ -30,7 +30,7 @@ pub async fn run(config: Config) -> Result<()> {
     let frontend_dir = config.frontend_dir.clone();
     let db_file = config.db.dir.join("default").join("yaas.db");
 
-    let mapper = create_db_mapper(db_file.as_path()).await?;
+    let mapper = create_db_mapper(db_file.as_path(), config.db.pool_size).await?;
 
     let db = Arc::new(mapper);
 

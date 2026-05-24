@@ -1,7 +1,10 @@
+use std::sync::Arc;
+
 use snafu::ResultExt;
-use turso::{Connection, Row};
+use turso::Row;
 
 use crate::Result;
+use crate::db::db_pool::DbPool;
 use crate::db::turso_decode::{FromTursoRow, collect_row, collect_rows, row_integer, row_text};
 use crate::db::turso_params::{integer_param, new_query_params, text_param};
 use crate::dto::{NewPasswordDto, NewUserDto, SuperuserDto};
@@ -18,11 +21,11 @@ impl FromTursoRow for SuperuserDto {
 }
 
 pub struct SuperuserRepo {
-    db_pool: Connection,
+    db_pool: Arc<DbPool>,
 }
 
 impl SuperuserRepo {
-    pub fn new(db_pool: Connection) -> Self {
+    pub fn new(db_pool: Arc<DbPool>) -> Self {
         Self { db_pool }
     }
 
@@ -170,7 +173,7 @@ impl SuperuserRepo {
         superuser_params.push(text_param(":id", user_id.clone()));
         superuser_params.push(integer_param(":created_at", created_at));
 
-        let mut conn = self.db_pool.clone();
+        let mut conn = self.db_pool.acquire().await?;
         let tx = conn.transaction().await.context(DbTransactionSnafu)?;
 
         let mut user_stmt = tx.prepare(user_query).await.context(DbPrepareSnafu)?;
@@ -227,7 +230,8 @@ impl SuperuserRepo {
 
         let q_params = new_query_params();
 
-        let mut stmt = self.db_pool.prepare(query).await.context(DbPrepareSnafu)?;
+        let conn = self.db_pool.acquire().await?;
+        let mut stmt = conn.prepare(query).await.context(DbPrepareSnafu)?;
         let mut rows = stmt.query(q_params).await.context(DbStatementSnafu)?;
         let items: Vec<SuperuserDto> = collect_rows(&mut rows).await?;
 
@@ -254,7 +258,8 @@ impl SuperuserRepo {
         q_params.push(text_param(":id", user_id.clone()));
         q_params.push(integer_param(":created_at", created_at));
 
-        let mut stmt = self.db_pool.prepare(query).await.context(DbPrepareSnafu)?;
+        let conn = self.db_pool.acquire().await?;
+        let mut stmt = conn.prepare(query).await.context(DbPrepareSnafu)?;
         let affected = stmt.execute(q_params).await.context(DbStatementSnafu)?;
         assert!(affected > 0, "Must insert a new superuser row");
 
@@ -278,7 +283,8 @@ impl SuperuserRepo {
         let mut q_params = new_query_params();
         q_params.push(text_param(":id", id));
 
-        let mut stmt = self.db_pool.prepare(query).await.context(DbPrepareSnafu)?;
+        let conn = self.db_pool.acquire().await?;
+        let mut stmt = conn.prepare(query).await.context(DbPrepareSnafu)?;
         let row_result = stmt.query_row(q_params).await;
         let dto: Option<SuperuserDto> = collect_row(row_result)?;
         Ok(dto)

@@ -87,7 +87,7 @@ impl TestCtx {
         let conn = create_connection(&db_file).await?;
         run_migrations(&conn).await?;
 
-        let mapper = create_db_mapper(db_file.as_path()).await?;
+        let mapper = create_db_mapper(db_file.as_path(), 4).await?;
 
         let config = Config {
             server: ServerConfig {
@@ -96,6 +96,7 @@ impl TestCtx {
             },
             db: DbConfig {
                 dir: db_dir.clone(),
+                pool_size: 4,
             },
             superuser: SuperuserConfig { setup_key: None },
             jwt_secret: "test-jwt-secret".to_string(),
