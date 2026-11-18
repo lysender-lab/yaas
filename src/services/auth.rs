@@ -60,9 +60,11 @@ pub async fn authenticate(
 
     // Select the first org, just let the user switch in the frontend
     let org_id = org_listing.data[0].org_id.clone();
+    let org_name = org_listing.data[0].org_name.clone();
     let actor = ActorPayloadDto {
         id: user_id,
         org_id: org_id.clone(),
+        org_name,
         org_count: org_listing.meta.total_records as i32,
         roles: org_listing.data[0].roles.clone(),
         scopes: vec![Scope::Auth],
@@ -154,10 +156,17 @@ pub async fn switch_auth_context_svc(
     // Refresh org count
     let org_count = state.db.org_members.list_memberships_count(user_id).await?;
 
+    // Get org details
+    let org = state.db.orgs.get(org_id.clone()).await?;
+    let org = org.context(WhateverSnafu {
+        msg: "Unable to reload org info".to_string(),
+    })?;
+
     // Switch to the new org
     let actor = ActorPayloadDto {
         id: user.id.clone(),
         org_id: org_id.clone(),
+        org_name: org.name,
         org_count: org_count as i32,
         roles: membership.roles,
         scopes: vec![Scope::Auth],
