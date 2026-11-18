@@ -58,6 +58,7 @@ impl AuthFixture {
             ActorPayloadDto {
                 id: self.user.id.clone(),
                 org_id: self.org.id.clone(),
+                org_name: self.org.name.clone(),
                 org_count: 1,
                 roles: vec![Role::OrgAdmin],
                 scopes,

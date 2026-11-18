@@ -8,7 +8,7 @@ use crate::dto::{
 };
 use crate::error::{
     AppNotRegisteredSnafu, ForbiddenSnafu, InvalidClientSnafu, OauthCodeInvalidSnafu,
-    OauthInvalidScopesSnafu, OauthStateMismatchSnafu, RedirectUriMistmatchSnafu,
+    OauthInvalidScopesSnafu, OauthStateMismatchSnafu, RedirectUriMistmatchSnafu, WhateverSnafu,
 };
 use crate::run::AppState;
 use crate::services::oauth_code::{create_oauth_code_svc, delete_oauth_code_svc};
@@ -166,10 +166,17 @@ pub async fn exchange_code_for_access_token_svc(
         .list_memberships_count(oauth_user_id.clone())
         .await?;
 
+    // Get org details
+    let org = state.db.orgs.get(oauth_org_id.clone()).await?;
+    let org = org.context(WhateverSnafu {
+        msg: "Unable to fetch org info".to_string(),
+    })?;
+
     // Create a token
     let payload = ActorPayloadDto {
         id: oauth_user_id,
         org_id: oauth_org_id,
+        org_name: org.name,
         org_count: org_count as i32,
         roles: membership.roles.clone(),
         scopes,

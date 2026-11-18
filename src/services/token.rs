@@ -13,6 +13,7 @@ use crate::{
 struct Claims {
     sub: String,
     oid: String,
+    orn: String,
     orc: i32,
     roles: String,
     scope: String,
@@ -35,6 +36,7 @@ pub fn create_auth_token(actor: &ActorPayloadDto, secret: &str) -> Result<String
     let claims = Claims {
         sub: data.id,
         oid: data.org_id,
+        orn: data.org_name,
         orc: data.org_count,
         roles,
         scope,
@@ -88,6 +90,7 @@ pub fn verify_auth_token(token: &str, secret: &str) -> Result<ActorPayloadDto> {
     Ok(ActorPayloadDto {
         id: decoded.claims.sub,
         org_id: decoded.claims.oid,
+        org_name: decoded.claims.orn,
         org_count: decoded.claims.orc,
         roles,
         scopes,
@@ -147,10 +150,12 @@ mod tests {
         // Generate token
         let user_id = generate_id(IdPrefix::User);
         let org_id = generate_id(IdPrefix::Org);
+        let org_name = "test".to_string();
 
         let actor = ActorPayloadDto {
             id: user_id.clone(),
             org_id: org_id.clone(),
+            org_name: org_name.clone(),
             org_count: 1,
             roles: vec![Role::OrgAdmin],
             scopes: vec![Scope::Auth, Scope::Vault],
@@ -163,6 +168,7 @@ mod tests {
         let actor = verify_auth_token(&token, "secret").unwrap();
         assert_eq!(actor.id, user_id);
         assert_eq!(actor.org_id, org_id);
+        assert_eq!(actor.org_name, org_name);
         assert_eq!(actor.org_count, 1);
         assert_eq!(actor.scopes, vec![Scope::Auth, Scope::Vault]);
     }
