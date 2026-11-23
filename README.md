@@ -30,6 +30,29 @@ Objectives:
 - Rust Backend
 - REST
 
+## Job Queue
+
+The queue uses the `jobs` table in the main database. Producers enqueue a job
+with a type, JSON payload, maximum attempts, and availability time. A single
+dispatcher polls for eligible jobs and conditionally claims them before
+passing them to available workers. Workers execute handlers concurrently.
+
+Workers are disabled by default. Set `JOB_WORKERS=2` to allow two concurrent
+jobs in the API process. The dispatcher recovers expired leases; workers renew
+leases while running and record completion or failure. Failed attempts are
+retried after a delay until the maximum is reached. Jobs may execute more than
+once, so handlers must tolerate retries. Every six hours, cron removes completed
+and failed jobs last updated more than seven days ago, even when workers are disabled.
+
+The application does not run database migrations on startup. Apply
+`db/migrations/10-create-jobs.sql` to existing databases before enabling workers
+or enqueueing jobs. A zero or unset `JOB_WORKERS` leaves queued jobs pending
+and disables lease recovery until workers are enabled.
+
+The initial `logger_job_handler` accepts a JSON payload such as
+`{"message":"Hello"}` and logs the message at info level. It is an example;
+yaas does not currently enqueue jobs as part of its application features.
+
 ## Models
 
 User:
@@ -91,6 +114,21 @@ OauthCode:
 - user_id
 - created_at
 - expires_at
+
+Job:
+- id (`job_` prefix)
+- job_type
+- payload (JSON text)
+- status (`pending`, `running`, `completed`, or `failed`)
+- attempts, max_attempts
+- available_at
+- lease_token, lease_expires_at (nullable)
+- last_error (nullable)
+- created_at, updated_at
+
+Job timestamps are Unix seconds. A lease identifies the current claim and
+expires if the worker cannot renew it; an expired job can be retried if it has
+attempts remaining.
 
 ## Roles
 

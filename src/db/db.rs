@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use crate::Result;
 use crate::db::db_pool::DbPool;
+use crate::db::job::JobRepo;
 use crate::db::{
     app::AppRepo, oauth_code::OauthCodeRepo, org::OrgRepo, org_app::OrgAppRepo,
     org_member::OrgMemberRepo, password::PasswordRepo, superuser::SuperuserRepo, user::UserRepo,
@@ -17,6 +18,7 @@ pub struct DbMapper {
     pub passwords: PasswordRepo,
     pub superusers: SuperuserRepo,
     pub users: UserRepo,
+    pub jobs: JobRepo,
 }
 
 pub async fn create_db_mapper(filename: &Path, pool_size: usize) -> Result<DbMapper> {
@@ -32,5 +34,6 @@ pub async fn create_db_mapper(filename: &Path, pool_size: usize) -> Result<DbMap
         passwords: PasswordRepo::new(arc_pool.clone()),
         superusers: SuperuserRepo::new(arc_pool.clone()),
         users: UserRepo::new(arc_pool.clone()),
+        jobs: JobRepo::new(arc_pool.clone()),
     })
 }

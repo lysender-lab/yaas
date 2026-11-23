@@ -24,6 +24,7 @@ pub struct Config {
 pub struct ServerConfig {
     pub address: String,
     pub https: bool,
+    pub job_workers: usize,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -95,12 +96,15 @@ impl Config {
             .and_then(|s| s.parse::<usize>().ok())
             .unwrap_or(DEFAULT_DB_POOL_SIZE);
 
+        let job_workers = parse_job_workers(optional_env("JOB_WORKERS").as_deref())?;
+
         let assets = AssetManifest::build(&frontend_dir).expect("Asset manifest should be valid");
 
         Ok(Config {
             server: ServerConfig {
                 address: required_env("SERVER_ADDRESS")?,
                 https: required_env("HTTPS")? == "1",
+                job_workers,
             },
             db: DbConfig {
                 dir: db_dir,
@@ -119,6 +123,15 @@ impl Config {
     }
 }
 
+fn parse_job_workers(value: Option<&str>) -> Result<usize> {
+    match value {
+        Some(value) => value.parse::<usize>().map_err(|_| Error::Config {
+            msg: "JOB_WORKERS must be a non-negative integer.".to_string(),
+        }),
+        None => Ok(0),
+    }
+}
+
 fn required_env(name: &str) -> Result<String> {
     match env::var(name) {
         Ok(val) => {
@@ -132,6 +145,20 @@ fn required_env(name: &str) -> Result<String> {
         Err(_) => Err(Error::Config {
             msg: format!("{} is required.", name),
         }),
+    }
+}
+
+#[cfg(test)]
+mod job_worker_tests {
+    use super::parse_job_workers;
+
+    #[test]
+    fn parses_worker_count() {
+        assert_eq!(parse_job_workers(None).unwrap(), 0);
+        assert_eq!(parse_job_workers(Some("0")).unwrap(), 0);
+        assert_eq!(parse_job_workers(Some("2")).unwrap(), 2);
+        assert!(parse_job_workers(Some("-1")).is_err());
+        assert!(parse_job_workers(Some("invalid")).is_err());
     }
 }
 

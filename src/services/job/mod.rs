@@ -1,0 +1,15 @@
+//! Database-backed job workers and job dispatch.
+
+mod handlers;
+mod worker;
+
+use crate::Result;
+use crate::db::DbMapper;
+use crate::dto::{JobDto, NewJobDto};
+
+pub use worker::WorkerPool;
+
+/// Enqueue a job for later processing.
+pub async fn enqueue(db: &DbMapper, job: NewJobDto) -> Result<JobDto> {
+    db.jobs.enqueue(job).await
+}
