@@ -29,6 +29,8 @@ impl WorkerPool {
             if count > 0 {
                 info!(count, "Job worker pool started");
                 dispatcher_loop(state, receiver, count).await;
+            } else {
+                info!("Job workers disabled (JOB_WORKERS=0)");
             }
         });
 
@@ -140,57 +142,15 @@ async fn run_job(state: &AppState, job: JobDto) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::job::{enqueue, handlers::LOGGER_JOB_TYPE};
-    use memo::job::{JobStatus, NewJobDto};
-    use std::sync::Arc;
+    use crate::dto::{JobStatus, NewJobDto};
+    use crate::services::job::{enqueue, handlers::LOGGER_JOB_TYPE};
+    use crate::test::TestCtx;
 
     #[tokio::test]
     async fn workers_execute_and_fail_invalid_jobs() {
-        let dir =
-            std::env::temp_dir().join(format!("memo-worker-test-{}", memo::utils::generate_id()));
-        std::fs::create_dir_all(&dir).unwrap();
-        let path = dir.join("jobs.db");
-        let conn = db::db::create_db_pool(&path).await.unwrap();
-        for statement in
-            include_str!("../../../db/db/migrations/memo/12-create-jobs.sql").split(';')
-        {
-            if !statement.trim().is_empty() {
-                conn.execute(statement.trim(), ()).await.unwrap();
-            }
-        }
-        drop(conn);
-        let db = Arc::new(db::create_db_mapper(&path, 4).await.unwrap());
-        let config = crate::config::Config {
-            jwt_secret: String::new(),
-            notes_master_key: String::new(),
-            upload_dir: dir.clone(),
-            cloud: crate::config::CloudConfig {
-                aws_access_key_id: String::new(),
-                aws_secret_access_key: String::new(),
-                aws_region: String::new(),
-                bucket: String::new(),
-            },
-            server: crate::config::ServerConfig {
-                address: String::new(),
-            },
-            db: crate::config::DbConfig {
-                dir: dir.clone(),
-                pool_size: 4,
-            },
-            auth: crate::config::AuthConfig {
-                api_url: String::new(),
-            },
-            job_workers: 2,
-        };
-        let state = AppState {
-            config,
-            client: reqwest::Client::new(),
-            storage_client: Arc::new(storage::StorageClient::new_aws().await.unwrap()),
-            db: db.clone(),
-            auth_cache: moka::sync::Cache::new(10),
-            dir_cache: moka::sync::Cache::new(10),
-            file_cache: moka::sync::Cache::new(10),
-        };
+        let ctx = TestCtx::new("workers").await.unwrap();
+        let state = ctx.state.clone();
+        let db = state.db.clone();
         let job = enqueue(
             &db,
             NewJobDto {
@@ -251,8 +211,5 @@ mod tests {
         .await
         .unwrap();
         pool.shutdown().await;
-        drop(state);
-        drop(db);
-        std::fs::remove_dir_all(dir).unwrap();
     }
 }

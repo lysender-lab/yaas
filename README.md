@@ -41,13 +41,17 @@ Workers are disabled by default. Set `JOB_WORKERS=2` to allow two concurrent
 jobs in the API process. The dispatcher recovers expired leases; workers renew
 leases while running and record completion or failure. Failed attempts are
 retried after a delay until the maximum is reached. Jobs may execute more than
-once, so handlers must tolerate retries. Completed and failed jobs remain in
-the table; automatic cleanup is not currently scheduled.
+once, so handlers must tolerate retries. Every six hours, cron removes completed
+and failed jobs last updated more than seven days ago, even when workers are disabled.
+
+The application does not run database migrations on startup. Apply
+`db/migrations/10-create-jobs.sql` to existing databases before enabling workers
+or enqueueing jobs. A zero or unset `JOB_WORKERS` leaves queued jobs pending
+and disables lease recovery until workers are enabled.
 
 The initial `logger_job_handler` accepts a JSON payload such as
-`{"message":"Hello"}` and logs the message at info level. Creating a note
-enqueues a log job on a best-effort basis: an enqueue failure is logged but
-does not undo note creation.
+`{"message":"Hello"}` and logs the message at info level. It is an example;
+yaas does not currently enqueue jobs as part of its application features.
 
 ## Models
 

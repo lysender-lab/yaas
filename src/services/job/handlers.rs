@@ -16,7 +16,7 @@ async fn logger_job_handler(message: &str) {
     info!("{}", message);
 }
 
-pub(super) async fn dispatch(state: &AppState, job: &JobDto) -> std::result::Result<(), String> {
+pub(super) async fn dispatch(_state: &AppState, job: &JobDto) -> std::result::Result<(), String> {
     match job.job_type.as_str() {
         LOGGER_JOB_TYPE => {
             let payload: LoggerJobPayload = serde_json::from_str(&job.payload)

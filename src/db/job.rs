@@ -71,6 +71,18 @@ impl JobRepo {
         Self { db_pool }
     }
 
+    #[cfg(test)]
+    pub(crate) async fn execute_test_sql(
+        &self,
+        sql: &str,
+        params: Vec<(String, turso::Value)>,
+    ) -> Result<()> {
+        let conn = self.db_pool.acquire().await?;
+        let mut stmt = conn.prepare(sql).await.context(DbPrepareSnafu)?;
+        stmt.execute(params).await.context(DbStatementSnafu)?;
+        Ok(())
+    }
+
     /// Enqueue a new pending job.
     pub async fn enqueue(&self, input: NewJobDto) -> Result<JobDto> {
         if input.job_type.trim().is_empty() || input.max_attempts <= 0 {
@@ -313,23 +325,21 @@ mod tests {
     }
 
     async fn expire(ctx: &TestCtx, id: &str) {
-        ctx.db
-            .any
-            .execute(
-                "UPDATE jobs SET lease_expires_at = :expiry WHERE id = :id".to_string(),
-                vec![
-                    (":expiry".into(), Value::Integer(now())),
-                    (":id".into(), Value::Text(id.into())),
-                ],
-            )
-            .await
-            .unwrap();
+        ctx.execute_sql(
+            "UPDATE jobs SET lease_expires_at = :expiry WHERE id = :id",
+            vec![
+                (":expiry".into(), Value::Integer(now())),
+                (":id".into(), Value::Text(id.into())),
+            ],
+        )
+        .await
+        .unwrap();
     }
 
     #[tokio::test]
     async fn enqueue_validation_and_round_trip() {
         let ctx = TestCtx::new("jobs-enqueue").await.unwrap();
-        let repo = &ctx.db.jobs;
+        let repo = &ctx.state.db.jobs;
         assert!(repo.enqueue(input(0, now())).await.is_err());
         let mut bad = input(1, now());
         bad.payload = "not json".into();
@@ -339,7 +349,7 @@ mod tests {
         assert!(repo.enqueue(bad).await.is_err());
         let job = repo.enqueue(input(3, now())).await.unwrap();
         assert!(job.id.starts_with("job_"));
-        assert!(memo::utils::valid_prefixed_id(&job.id));
+        assert!(crate::utils::valid_id(&job.id));
         let stored = repo.get(&job.id).await.unwrap().unwrap();
         assert_eq!(stored.id, job.id);
         assert_eq!(stored.status, JobStatus::Pending);
@@ -350,21 +360,19 @@ mod tests {
                 && stored.last_error.is_none()
         );
         assert!(repo.get("missing").await.unwrap().is_none());
-        ctx.db
-            .any
-            .execute(
-                "UPDATE jobs SET status = 'invalid' WHERE id = :id".into(),
-                vec![(":id".into(), Value::Text(job.id))],
-            )
-            .await
-            .unwrap();
+        ctx.execute_sql(
+            "UPDATE jobs SET status = 'invalid' WHERE id = :id",
+            vec![(":id".into(), Value::Text(job.id))],
+        )
+        .await
+        .unwrap();
         assert!(repo.get(&stored.id).await.is_err());
     }
 
     #[tokio::test]
     async fn empty_polls_and_recovery_allow_later_claim() {
         let ctx = TestCtx::new("jobs-empty-polls").await.unwrap();
-        let repo = &ctx.db.jobs;
+        let repo = &ctx.state.db.jobs;
         for _ in 0..20 {
             assert!(
                 repo.claim_next(Duration::from_secs(30))
@@ -389,7 +397,7 @@ mod tests {
     #[tokio::test]
     async fn claim_retry_complete_and_cleanup() {
         let ctx = TestCtx::new("jobs-lifecycle").await.unwrap();
-        let repo = &ctx.db.jobs;
+        let repo = &ctx.state.db.jobs;
         let future = repo.enqueue(input(2, now() + 3600)).await.unwrap();
         assert!(
             repo.claim_next(Duration::from_secs(30))
@@ -454,7 +462,7 @@ mod tests {
     #[tokio::test]
     async fn cleanup_only_deletes_terminal_jobs_before_cutoff() {
         let ctx = TestCtx::new("jobs-cleanup-retention").await.unwrap();
-        let repo = &ctx.db.jobs;
+        let repo = &ctx.state.db.jobs;
         let cutoff = now() - 7 * 24 * 60 * 60;
         let cases = [
             ("completed", cutoff - 1, true),
@@ -467,19 +475,16 @@ mod tests {
         let mut jobs = Vec::new();
         for (status, updated_at, deleted) in cases {
             let job = repo.enqueue(input(1, now())).await.unwrap();
-            ctx.db
-                .any
-                .execute(
-                    "UPDATE jobs SET status = :status, updated_at = :updated_at WHERE id = :id"
-                        .into(),
-                    vec![
-                        (":status".into(), Value::Text(status.into())),
-                        (":updated_at".into(), Value::Integer(updated_at)),
-                        (":id".into(), Value::Text(job.id.clone())),
-                    ],
-                )
-                .await
-                .unwrap();
+            ctx.execute_sql(
+                "UPDATE jobs SET status = :status, updated_at = :updated_at WHERE id = :id",
+                vec![
+                    (":status".into(), Value::Text(status.into())),
+                    (":updated_at".into(), Value::Integer(updated_at)),
+                    (":id".into(), Value::Text(job.id.clone())),
+                ],
+            )
+            .await
+            .unwrap();
             jobs.push((job.id, deleted));
         }
 
@@ -492,7 +497,7 @@ mod tests {
     #[tokio::test]
     async fn expired_lease_recovery_and_exhaustion() {
         let ctx = TestCtx::new("jobs-expiry").await.unwrap();
-        let repo = &ctx.db.jobs;
+        let repo = &ctx.state.db.jobs;
         let job = repo.enqueue(input(2, now())).await.unwrap();
         let first = repo
             .claim_next(Duration::from_secs(30))
@@ -542,7 +547,7 @@ mod tests {
     #[tokio::test]
     async fn concurrent_claims_and_invalid_lease() {
         let ctx = TestCtx::new("jobs-concurrent").await.unwrap();
-        let repo = &ctx.db.jobs;
+        let repo = &ctx.state.db.jobs;
         assert!(repo.claim_next(Duration::ZERO).await.is_err());
         assert!(repo.claim_next(Duration::MAX).await.is_err());
         repo.enqueue(input(2, now())).await.unwrap();
@@ -568,7 +573,7 @@ mod tests {
     #[tokio::test]
     async fn scheduling_and_terminal_failure() {
         let ctx = TestCtx::new("jobs-scheduling").await.unwrap();
-        let repo = &ctx.db.jobs;
+        let repo = &ctx.state.db.jobs;
         let later = repo.enqueue(input(1, now() - 1)).await.unwrap();
         let earlier = repo.enqueue(input(1, now() - 10)).await.unwrap();
         let claimed = repo

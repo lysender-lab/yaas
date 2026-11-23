@@ -33,6 +33,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../db/migrations/07-create-org-apps.sql"),
     include_str!("../db/migrations/08-create-oauth-codes.sql"),
     include_str!("../db/migrations/09-create-superusers.sql"),
+    include_str!("../db/migrations/10-create-jobs.sql"),
 ];
 
 pub struct TestCtx {
@@ -94,6 +95,7 @@ impl TestCtx {
             server: ServerConfig {
                 address: "127.0.0.1:0".to_string(),
                 https: false,
+                job_workers: 0,
             },
             db: DbConfig {
                 dir: db_dir.clone(),
@@ -148,6 +150,10 @@ impl TestCtx {
             },
         )
         .await
+    }
+
+    pub async fn execute_sql(&self, sql: &str, params: Vec<(String, Value)>) -> Result<()> {
+        self.state.db.jobs.execute_test_sql(sql, params).await
     }
 
     pub async fn seed_auth_fixture(
