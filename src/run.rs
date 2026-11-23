@@ -2,18 +2,19 @@ use axum::Router;
 use axum::extract::FromRef;
 use moka::sync::Cache;
 use reqwest::{Client, ClientBuilder};
-use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::TcpListener;
 use tower_cookies::CookieManagerLayer;
 use tower_http::trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer};
-use tracing::{Level, info};
+use tracing::{Level, error, info};
 
 use crate::Result;
 use crate::config::{Config, SuperuserConfig};
 use crate::db::{DbMapper, create_db_mapper};
 use crate::dto::Actor;
+use crate::services::cron;
+use crate::services::job::WorkerPool;
 use crate::utils::{IdPrefix, generate_id};
 use crate::web::all_routes;
 
@@ -48,12 +49,22 @@ pub async fn run(config: Config) -> Result<()> {
     // Check for superusers
     let config = init_superuser(config, db.clone()).await?;
 
+    let job_workers = config.server.job_workers;
+
     let state = AppState {
         config: Arc::new(config),
         db,
         client,
         auth_cache,
     };
+
+    let listener = TcpListener::bind(&server_address)
+        .await
+        .map_err(|e| crate::Error::Config {
+            msg: format!("Unable to bind HTTP server: {e}"),
+        })?;
+    let scheduler = cron::start(state.clone()).await?;
+    let workers = WorkerPool::start(state.clone(), job_workers);
 
     let routes_all = Router::new()
         .merge(all_routes(state, &frontend_dir))
@@ -67,18 +78,20 @@ pub async fn run(config: Config) -> Result<()> {
     // Setup the server
     info!("HTTP Server runnung on {}", server_address);
 
-    let listener = TcpListener::bind(server_address)
-        .await
-        .expect("Failed to bind");
-    axum::serve(
-        listener,
-        routes_all.into_make_service_with_connect_info::<SocketAddr>(),
-    )
-    .with_graceful_shutdown(shutdown_signal())
-    .await
-    .expect("Server must start");
+    let result = axum::serve(listener, routes_all.into_make_service())
+        .with_graceful_shutdown(shutdown_signal())
+        .await;
+    let cron_result = cron::shutdown(scheduler).await;
+    workers.shutdown().await;
+    if let Err(ref e) = cron_result {
+        error!("Cron scheduler shutdown failed: {}", e);
+    }
+    result.map_err(|e| crate::Error::Config {
+        msg: format!("HTTP server failed: {e}"),
+    })?;
+    cron_result?;
 
-    info!("HTTP Server stopped");
+    info!("HTTP server stopped");
 
     Ok(())
 }

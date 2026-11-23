@@ -17,6 +17,11 @@ pub enum Error {
     #[snafu(display("Config error: {}", msg))]
     Config { msg: String },
 
+    #[snafu(display("Cron scheduler error: {}", source))]
+    Cron {
+        source: tokio_cron_scheduler::JobSchedulerError,
+    },
+
     #[snafu(display("Failed to read bundles.json: {}", source))]
     ManifestRead { source: std::io::Error },
 
@@ -196,6 +201,9 @@ pub enum Error {
 
     #[snafu(display("Too many requests. Please try again later."))]
     RateLimitExceeded,
+
+    #[snafu(display("Tokio JoinHandle error: {}", source))]
+    TokioJoin { source: tokio::task::JoinError },
 
     #[snafu(display("{}", msg))]
     Whatever { msg: String },

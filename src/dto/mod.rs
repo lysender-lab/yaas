@@ -1,6 +1,7 @@
 mod actor;
 mod app;
 mod error;
+mod job;
 mod oauth;
 mod oauth_client;
 mod oauth_code;
@@ -16,6 +17,7 @@ mod user;
 pub use actor::*;
 pub use app::*;
 pub use error::*;
+pub use job::*;
 pub use oauth::*;
 pub use oauth_client::*;
 pub use oauth_code::*;

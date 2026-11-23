@@ -13,6 +13,8 @@ pub enum IdPrefix {
     Password,
     Superuser,
     SuperuserKey,
+    Job,
+    Any,
 }
 
 impl TryFrom<&str> for IdPrefix {
@@ -31,6 +33,8 @@ impl TryFrom<&str> for IdPrefix {
             "pas" => Ok(Self::Password),
             "sup" => Ok(Self::Superuser),
             "suk" => Ok(Self::SuperuserKey),
+            "job" => Ok(Self::Job),
+            "any" => Ok(Self::Any),
             _ => Err(format!("Invalid ID Prefix: {value}")),
         }
     }
@@ -50,6 +54,8 @@ impl core::fmt::Display for IdPrefix {
             Self::Password => write!(f, "pas"),
             Self::Superuser => write!(f, "sup"),
             Self::SuperuserKey => write!(f, "suk"),
+            Self::Job => write!(f, "job"),
+            Self::Any => write!(f, "any"),
         }
     }
 }

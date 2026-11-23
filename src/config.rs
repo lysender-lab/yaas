@@ -24,6 +24,7 @@ pub struct Config {
 pub struct ServerConfig {
     pub address: String,
     pub https: bool,
+    pub job_workers: usize,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -95,12 +96,20 @@ impl Config {
             .and_then(|s| s.parse::<usize>().ok())
             .unwrap_or(DEFAULT_DB_POOL_SIZE);
 
+        let job_workers = match optional_env("JOB_WORKERS") {
+            Some(value) => value.parse::<usize>().map_err(|_| Error::Config {
+                msg: "JOB_WORKERS must be a non-negative integer.".to_string(),
+            })?,
+            None => 0,
+        };
+
         let assets = AssetManifest::build(&frontend_dir).expect("Asset manifest should be valid");
 
         Ok(Config {
             server: ServerConfig {
                 address: required_env("SERVER_ADDRESS")?,
                 https: required_env("HTTPS")? == "1",
+                job_workers,
             },
             db: DbConfig {
                 dir: db_dir,
