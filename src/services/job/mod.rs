@@ -7,7 +7,6 @@ use crate::Result;
 use crate::db::DbMapper;
 use crate::dto::{JobDto, NewJobDto};
 
-pub use handlers::{create_image_versions_job, delete_file_job};
 pub use worker::WorkerPool;
 
 /// Enqueue a job for later processing.
